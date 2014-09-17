@@ -107,7 +107,9 @@ if args.facet_tol is not None:
     opening_kernel=(xxg**2+yyg**2 <= 25)
     closing_kernel=(xxg**2+yyg**2 <= 64)
 
-pad=np.max([1, np.int((w_smooth+N_erode)/dec)]);
+pad=np.max([1, np.int(2.*(w_smooth+N_erode)/dec)]);
+if w_error is not None:
+     pad=np.max([1, np.int(2.*w_error+2.*(w_smooth+N_erode)/dec)])
 
 stride=np.int(blocksize/dec)
 in_sub=im_subset(0, 0, nX, nY, ds, pad_val=0, Bands=[1])
