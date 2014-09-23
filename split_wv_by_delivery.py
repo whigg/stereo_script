@@ -282,6 +282,7 @@ def main():
             # add the current polygon to the geometry for this ID
             I_poly=I_poly.Union(IMD[xml_count]['poly'])
             if not Order_dict.has_key(IMD[xml_count]['orderID']):
+                print "#found ID: %s" % IMD[xml_count]['orderID']
                 # this is the first xml from this order
                 Order_dict[IMD[xml_count]['orderID']]=dict()
                 Order_dict[IMD[xml_count]['orderID']]['xml_list']=list()
