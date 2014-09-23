@@ -115,34 +115,35 @@ def Intersect_Remainder(ID_data, Remainder):
     #  ID_data : a 2-element list of data structures defining the geometry of the data for each ID in each order
     #  Remainder : A geometry defining the remaining region to be mapped
     # 
-    # find the order-pair intersection that covers the largest area of Remainder
+    # find the order-pair intersection that covers the largest pixel count of Remainder
     # Return:
     #  bestOrders: a 2-element list of the orders in ID1 and ID2 whose intersection covers the largest area
-    #  bestA : the area of the intersection
+    #  best_N : The estimated pixel count of the intersection
     #  Intersection_poly : a geometry defining the intersection
     #  Remainder : a geometry defining the remaining region to be mapped
     #  Remainder_A: the area of Remainder
     
     keys1=ID_data[0]['Order_dict'].keys()
     keys2=ID_data[1]['Order_dict'].keys()
-    A0=np.zeros([len(keys1), len(keys2)])
+    N0=np.zeros([len(keys1), len(keys2)])
     for Ord1, key1 in enumerate(keys1):
         for Ord2, key2 in enumerate(keys2):
             P=ID_data[0]['Order_dict'][key1]['poly']
             P=P.Intersection(ID_data[1]['Order_dict'][key2]['poly'])
             if P is not None:
+                GSD=np.maximum(ID_data[0]['Order_dict'][key1]['GSD'], ID_data[1]['Order_dict'][key2]['GSD'])
                 P=P.Intersection(Remainder)
                 # make sure the intersection has a valid area
                 if (np.uint16(P.GetGeometryType())==ogr.wkbPolygon or np.uint16(P.GetGeometryType())==ogr.wkbMultiPolygon or np.uint16(P.GetGeometryType())==ogr.wkbGeometryCollection) :        
-                    A0[Ord1, Ord2]=P.Area()
+                    N0[Ord1, Ord2]=P.Area()/GSD/GSD
                 else:
-                    A0[Ord1, Ord2]=0.0
+                    N0[Ord1, Ord2]=0.0
             else:
                 P=None
-                A0[Ord1, Ord2]=0.
-    if np.any(A0.ravel()>0):
-        bestOrderSub=np.unravel_index(np.argmax(A0), A0.shape)
-        best_A=A0[bestOrderSub[0], bestOrderSub[1]]
+                N0[Ord1, Ord2]=0.
+    if np.any(N0.ravel()>0):
+        bestOrderSub=np.unravel_index(np.argmax(N0), N0.shape)
+        best_N=N0[bestOrderSub[0], bestOrderSub[1]]
         bestOrders=[keys1[bestOrderSub[0]], keys2[bestOrderSub[1]]]
         Intersection_poly=ID_data[0]['Order_dict'][bestOrders[0]]['poly'].Intersection(ID_data[1]['Order_dict'][bestOrders[1]]['poly']).Intersection(Remainder)
         Remainder=Remainder.Difference(Intersection_poly)
@@ -152,11 +153,11 @@ def Intersect_Remainder(ID_data, Remainder):
             Remainder_A=0.
     else:
         bestOrders=None
-        best_A=0
+        best_A=N
         Intersection_poly=None
         Remainder=None
         Remainder_A=0
-    return bestOrders, best_A, Intersection_poly, Remainder, Remainder_A
+    return bestOrders, best_N, Intersection_poly, Remainder, Remainder_A
 
 def getGeom_xy(geom):
     # Utility that returns a list lists of coordinates for the polygons in geom
@@ -282,12 +283,13 @@ def main():
             # add the current polygon to the geometry for this ID
             I_poly=I_poly.Union(IMD[xml_count]['poly'])
             if not Order_dict.has_key(IMD[xml_count]['orderID']):
-                print "#found ID: %s" % IMD[xml_count]['orderID']
+                #print "#found ID: %s" % IMD[xml_count]['orderID']
                 # this is the first xml from this order
                 Order_dict[IMD[xml_count]['orderID']]=dict()
                 Order_dict[IMD[xml_count]['orderID']]['xml_list']=list()
                 Order_dict[IMD[xml_count]['orderID']]['poly_list']=list()
                 Order_dict[IMD[xml_count]['orderID']]['poly']=IMD[xml_count]['poly']
+                Order_dict[IMD[xml_count]['orderID']]['GSD']=IMD[xml_count]['GSD']
             else:
                 # add the polygon for this file to the geometry for the order
                 Order_dict[IMD[xml_count]['orderID']]['poly']=Order_dict[IMD[xml_count]['orderID']]['poly'].Union(IMD[xml_count]['poly'])
@@ -316,7 +318,7 @@ def main():
     # iterate until the remaining area is less than 1 km^2  (the 'buffer' statement removes small islands and non-polygon geometries)
     while Remainder.Buffer(-500).Area() > 1.e6:
         # find the best pair of orders intersecting the remaining area
-        bestOrders, best_A, Intersection_poly, Remainder, Remainder_A=Intersect_Remainder(ID_data, Remainder)
+        bestOrders, best_N, Intersection_poly, Remainder, Remainder_A=Intersect_Remainder(ID_data, Remainder)
         BestOrderList.append(bestOrders)
         IntPolyList.append(Intersection_poly)
         # make a list of the ID_data for each pair's data
@@ -339,7 +341,7 @@ def main():
             order_xml_list.append(this_xml_list)
             order_poly_list.append(this_poly_list)
         # report the order names and the inersection area (as commented text)
-        print "# Order1=%s\tOrder2=%s\tArea= %6.1f km^2" % (bestOrders[0], bestOrders[1], best_A/1.e6)
+        print "# Order1=%s\tOrder2=%s\tPixelCount= %6.1f Mpx" % (bestOrders[0], bestOrders[1], best_N/1.e6)
 
         # write out a set of shapefiles for this intersection (can be used to clip the data later)
         shp_geom_list=[Intersection_poly.Buffer(1000.), oDL[0]['poly'], oDL[1]['poly']]
