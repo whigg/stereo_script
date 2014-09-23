@@ -245,6 +245,9 @@ def main():
     # find the xmls corresponding to each ID
     xmls_1=glob.glob(top_dir+'/*'+IDs[0]+'*.xml')
     xmls_2=glob.glob(top_dir+'/*'+IDs[1]+'*.xml')
+    if os.path.isdir(top_dir+'/bad_fn'):
+        xmls_1.extend(glob.glob(top_dir+'/bad_fn/*'+IDs[0]+'*.xml'))
+        xmls_2.extend(glob.glob(top_dir+'/bad_fn/*'+IDs[1]+'*.xml'))
     print "# IDs: %s %s" % IDs
 
     # Extract the outline for the first xml of the first ID
