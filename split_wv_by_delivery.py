@@ -134,26 +134,26 @@ def Intersect_Remainder(ID_data, Remainder):
                 GSD=np.maximum(ID_data[0]['Order_dict'][key1]['GSD'], ID_data[1]['Order_dict'][key2]['GSD'])
                 P=P.Intersection(Remainder)
                 # make sure the intersection has a valid area
-                if (np.uint16(P.GetGeometryType())==ogr.wkbPolygon or np.uint16(P.GetGeometryType())==ogr.wkbMultiPolygon or np.uint16(P.GetGeometryType())==ogr.wkbGeometryCollection) :        
+                if np.uint16(P.GetGeometryType())==ogr.wkbPolygon or np.uint16(P.GetGeometryType())==ogr.wkbMultiPolygon or np.uint16(P.GetGeometryType())==ogr.wkbGeometryCollection :        
                     N0[Ord1, Ord2]=P.Area()/GSD/GSD
                 else:
                     N0[Ord1, Ord2]=0.0
             else:
                 P=None
-                N0[Ord1, Ord2]=0.
+                N0[Ord1, Ord2]=0.0
     if np.any(N0.ravel()>0):
         bestOrderSub=np.unravel_index(np.argmax(N0), N0.shape)
         best_N=N0[bestOrderSub[0], bestOrderSub[1]]
         bestOrders=[keys1[bestOrderSub[0]], keys2[bestOrderSub[1]]]
         Intersection_poly=ID_data[0]['Order_dict'][bestOrders[0]]['poly'].Intersection(ID_data[1]['Order_dict'][bestOrders[1]]['poly']).Intersection(Remainder)
-        Remainder=Remainder.Difference(Intersection_poly)
+        Remainder=Remainder.Difference(Intersection_poly).Buffer(-500).Buffer(500)
         if Remainder is not None:
             Remainder_A=Remainder.Area()
         else:
             Remainder_A=0.
     else:
         bestOrders=None
-        best_A=N
+        best_A=0
         Intersection_poly=None
         Remainder=None
         Remainder_A=0
@@ -298,8 +298,22 @@ def main():
         ID_data.append({'ID': IDs[ID_count], 'poly': I_poly,'Order_dict': Order_dict,'IMD': IMD })
 
     # find the overlap between the geometries for the two IDs
-    CompletePoly=ID_data[0]['poly']
-    CompletePoly=CompletePoly.Intersection(ID_data[1]['poly'])
+    CompletePoly=ID_data[0]['poly'].Intersection(ID_data[1]['poly'])
+    CompletePoly=CompletePoly.Buffer(-500).Buffer(500)
+    if DEBUG:
+        plt.figure();
+        xx0,yy0=getGeom_xy(CompletePoly)
+        for i in range(len(xx0)):
+                plt.fill(xx0[i], yy0[i],'g',alpha= 0.1)
+        xx,yy=getGeom_xy(ID_data[0]['poly'])
+        for i in range(len(xx)):
+                plt.plot(xx[i], yy[i],'r*-')
+        xx,yy=getGeom_xy(ID_data[1]['poly'])
+        for i in range(len(xx)):
+                plt.plot(xx[i], yy[i],'b*-')
+        plt.axis('equal')
+
+
     # the complete overlap is the area we want to map.  It becomes 'remainder' to initialize the first iteration
     Remainder=CompletePoly
     Remainder_A=CompletePoly.Area()
@@ -308,10 +322,6 @@ def main():
     # bulid a list of intersections between orders
     BestOrderList=list()
     IntPolyList=list()
-    if DEBUG:
-        xx0,yy0=getGeom_xy(Remainder)
-        for i in range(len(xx0)):
-            plt.plot(xx0[i], yy0[i],'k')
     #print '# Order1\tOrder2\tArea(km^2)'
     xml_str=''
     set_count=0
@@ -341,7 +351,8 @@ def main():
             order_xml_list.append(this_xml_list)
             order_poly_list.append(this_poly_list)
         # report the order names and the inersection area (as commented text)
-        print "# Order1=%s\tOrder2=%s\tPixelCount= %6.1f Mpx" % (bestOrders[0], bestOrders[1], best_N/1.e6)
+        set_count=set_count+1
+        print "# /OrderSet_%d: Order1=%s\tOrder2=%s\tPixelCount= %6.1f Mpx\t RemainderArea=%f km^2" % (set_count, bestOrders[0], bestOrders[1], best_N/1.e6, Remainder_A/1.e6)
 
         # write out a set of shapefiles for this intersection (can be used to clip the data later)
         shp_geom_list=[Intersection_poly.Buffer(1000.), oDL[0]['poly'], oDL[1]['poly']]
@@ -349,8 +360,7 @@ def main():
         for shp_geom, shp_fields in zip(shp_geom_list, shp_geom_fields):            
             make_geom_shapefile(bestOrders[0]+'-'+bestOrders[1]+'-'+shp_fields['name'], shp_geom, shp_fields, out_ref_sys=ll_refSys, in_ref_sys=AT_sys)
             
-        # build a string listing the xml files in each order for each intersection
-        set_count=set_count+1
+        # build a string listing the xml files in each order for each intersection        
         xml_str=xml_str+"OrderSet_"+str(set_count)+" "+bestOrders[0]+" "+bestOrders[1]
         for ox in order_xml_list:
             for ofile in ox:
@@ -369,11 +379,13 @@ def main():
                 plt.plot(xx[i], yy[i],'b')    
             xx,yy=getGeom_xy(Intersection_poly)
             for i in range(len(xx)):
-                plt.plot(xx[i], yy[i],'m*-')  
+                plt.plot(xx[i], yy[i],'m*-') 
+                plt.fill(xx[i], yy[i],'m') 
             
             xx,yy=getGeom_xy(Remainder)
             for i in range(len(xx)):
-                plt.plot(xx[i], yy[i],'g*-')    
+                plt.plot(xx[i], yy[i],'g*-')  
+                plt.fill(xx[i], yy[i],'g')
             plt.axis('equal')
 
     # write out a table of all the xml files in each order
