@@ -289,13 +289,19 @@ def main():
                 Order_dict[IMD[xml_count]['orderID']]['xml_list']=list()
                 Order_dict[IMD[xml_count]['orderID']]['poly_list']=list()
                 Order_dict[IMD[xml_count]['orderID']]['poly']=IMD[xml_count]['poly']
-                Order_dict[IMD[xml_count]['orderID']]['GSD']=IMD[xml_count]['GSD']
+                Order_dict[IMD[xml_count]['orderID']]['GSD']=[IMD[xml_count]['GSD']]
             else:
                 # add the polygon for this file to the geometry for the order
                 Order_dict[IMD[xml_count]['orderID']]['poly']=Order_dict[IMD[xml_count]['orderID']]['poly'].Union(IMD[xml_count]['poly'])
+                Order_dict[IMD[xml_count]['orderID']]['GSD'].append(IMD[xml_count]['GSD'])
             Order_dict[IMD[xml_count]['orderID']]['xml_list'].append(xml_file) 
             Order_dict[IMD[xml_count]['orderID']]['poly_list'].append(IMD[xml_count]['poly'])
         ID_data.append({'ID': IDs[ID_count], 'poly': I_poly,'Order_dict': Order_dict,'IMD': IMD })
+
+    # calculate the mean GSD
+    for ID_count, IDd in enumerate(ID_data):
+        for Order in IDd['Order_dict'].keys():
+            ID_data[ID_count]['Order_dict'][Order]['GSD']=np.mean(np.array(ID_data[ID_count]['Order_dict'][Order]['GSD']))
 
     # find the overlap between the geometries for the two IDs
     CompletePoly=ID_data[0]['poly'].Intersection(ID_data[1]['poly'])
@@ -326,11 +332,17 @@ def main():
     xml_str=''
     set_count=0
     # iterate until the remaining area is less than 1 km^2  (the 'buffer' statement removes small islands and non-polygon geometries)
+    out_order_list=(dict(), dict())
     while Remainder.Buffer(-500).Area() > 1.e6:
         # find the best pair of orders intersecting the remaining area
         bestOrders, best_N, Intersection_poly, Remainder, Remainder_A=Intersect_Remainder(ID_data, Remainder)
         BestOrderList.append(bestOrders)
         IntPolyList.append(Intersection_poly)
+        # make a list of the files for each ID
+        for ii in range(2):
+            if not bestOrders[ii] in out_order_list[ii]:
+                out_order_list[ii][bestOrders[ii]]=list()
+ 
         # make a list of the ID_data for each pair's data
         oDL=[ID_data[0]['Order_dict'][bestOrders[0]], ID_data[1]['Order_dict'][bestOrders[1]]]
         # erode the intersection poly by 500 m to avoid intersections with small scraps (lines, small islands)
@@ -338,7 +350,7 @@ def main():
         order_xml_list=list()
         order_poly_list=list()
         # loop over the IDs
-        for oD in oDL:
+        for ii, oD in enumerate(oDL):
             this_xml_list=list()
             this_poly_list=list()
             # loop over the subscenes in each ID
@@ -346,10 +358,13 @@ def main():
                 # build the intersection of the subscenes that contribute to the current overlap area
                 temp_poly=Intersection_poly.Intersection(this_poly)
                 if temp_poly.Area() > 0:
-                    this_xml_list.append(os.path.splitext(os.path.basename(this_xml))[0])
+                    this_image_name=os.path.splitext(os.path.basename(this_xml))[0]
+                    this_xml_list.append(this_image_name)
                     this_poly_list.append(this_poly)
+                    out_order_list[ii][bestOrders[ii]].append(this_image_name)
             order_xml_list.append(this_xml_list)
             order_poly_list.append(this_poly_list)
+            
         # report the order names and the inersection area (as commented text)
         set_count=set_count+1
         print "# /OrderSet_%d: Order1=%s\tOrder2=%s\tPixelCount= %6.1f Mpx\t RemainderArea=%f km^2" % (set_count, bestOrders[0], bestOrders[1], best_N/1.e6, Remainder_A/1.e6)
@@ -389,8 +404,12 @@ def main():
             plt.axis('equal')
 
     # write out a table of all the xml files in each order
-    print "#Order1 Order2 files"
-    print xml_str
+    print "# ID Order files"
+    for ii in range(2):
+        for order_name in out_order_list[ii].keys():
+            print IDs[ii]+" "+order_name+" "+" ".join(out_order_list[ii][order_name])
+
+    #print xml_str
     if DEBUG:
         plt.show()          
     
