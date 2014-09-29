@@ -297,6 +297,13 @@ def main():
             Order_dict[IMD[xml_count]['orderID']]['xml_list'].append(xml_file) 
             Order_dict[IMD[xml_count]['orderID']]['poly_list'].append(IMD[xml_count]['poly'])
         ID_data.append({'ID': IDs[ID_count], 'poly': I_poly,'Order_dict': Order_dict,'IMD': IMD })
+    
+    print "# ID1: %s, %d orders" %(IDs[0], len(ID_data[0]['Order_dict'].keys()))
+    print "# ID2: %s, %d orders" %(IDs[1], len(ID_data[1]['Order_dict'].keys()))
+    if len(ID_data[0]['Order_dict'].keys())==1 and len(ID_data[1]['Order_dict'].keys())==1:
+        print "# Default processing should succeed"
+    else:
+        print "# Split processing needed"
 
     # calculate the mean GSD
     for ID_count, IDd in enumerate(ID_data):
@@ -367,7 +374,7 @@ def main():
             
         # report the order names and the inersection area (as commented text)
         set_count=set_count+1
-        print "# /OrderSet_%d: Order1=%s\tOrder2=%s\tPixelCount= %6.1f Mpx\t RemainderArea=%f km^2" % (set_count, bestOrders[0], bestOrders[1], best_N/1.e6, Remainder_A/1.e6)
+        print "# OrderSet_%d: Order1=%s\tOrder2=%s\tPixelCount= %6.1f Mpx\t RemainderArea=%f km^2" % (set_count, bestOrders[0], bestOrders[1], best_N/1.e6, Remainder_A/1.e6)
 
         # write out a set of shapefiles for this intersection (can be used to clip the data later)
         shp_geom_list=[Intersection_poly.Buffer(1000.), oDL[0]['poly'], oDL[1]['poly']]
